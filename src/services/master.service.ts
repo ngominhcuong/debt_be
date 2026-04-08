@@ -353,7 +353,10 @@ async function ensureAccountForItem(
   }
 
   if (account.accountType !== expectedType) {
-    throw new ApiError(400, `${fieldLabel} must have account type ${expectedType}`);
+    throw new ApiError(
+      400,
+      `${fieldLabel} must have account type ${expectedType}`,
+    );
   }
 
   if (!allowedCodes.includes(account.code)) {
@@ -427,7 +430,8 @@ export async function getPartnerById(id: string) {
 }
 
 export async function createPartner(input: UpsertPartnerInput) {
-  const code = input.code?.trim() || (await generateNextPartnerCode(input.partnerType));
+  const code =
+    input.code?.trim() || (await generateNextPartnerCode(input.partnerType));
 
   return prisma.partner.create({
     data: {
@@ -449,7 +453,10 @@ export async function createPartner(input: UpsertPartnerInput) {
   });
 }
 
-export async function updatePartner(id: string, input: Partial<UpsertPartnerInput>) {
+export async function updatePartner(
+  id: string,
+  input: Partial<UpsertPartnerInput>,
+) {
   const existing = await prisma.partner.findUnique({
     where: { id },
     select: { id: true, code: true },
@@ -490,11 +497,7 @@ export async function listItems(input: ListItemsInput) {
     itemType: input.itemType,
     isActive: input.isActive,
     OR: qFilter
-      ? [
-          { sku: qFilter },
-          { name: qFilter },
-          { description: qFilter },
-        ]
+      ? [{ sku: qFilter }, { name: qFilter }, { description: qFilter }]
       : undefined,
   };
 
@@ -620,11 +623,7 @@ export async function listAccounts(input: ListAccountsInput) {
     accountType: input.accountType,
     isActive: input.isActive,
     OR: qFilter
-      ? [
-          { code: qFilter },
-          { name: qFilter },
-          { description: qFilter },
-        ]
+      ? [{ code: qFilter }, { name: qFilter }, { description: qFilter }]
       : undefined,
   };
 
@@ -689,7 +688,10 @@ export async function createAccount(input: UpsertAccountInput) {
   });
 }
 
-export async function updateAccount(id: string, input: Partial<UpsertAccountInput>) {
+export async function updateAccount(
+  id: string,
+  input: Partial<UpsertAccountInput>,
+) {
   const existing = await prisma.account.findUnique({
     where: { id },
     select: { id: true, code: true },
@@ -703,7 +705,10 @@ export async function updateAccount(id: string, input: Partial<UpsertAccountInpu
   const rule = ensureAllowedCoreDebtAccountCode(originalCode);
 
   if (typeof input.code === "string" && input.code !== originalCode) {
-    throw new ApiError(400, "Changing account code is not allowed for core debt accounts");
+    throw new ApiError(
+      400,
+      "Changing account code is not allowed for core debt accounts",
+    );
   }
 
   if (input.parentId !== undefined && input.parentId !== null) {

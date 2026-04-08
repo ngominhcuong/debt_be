@@ -86,7 +86,10 @@ const listAccountsQuerySchema = z.object({
 });
 
 const accountCreateSchema = z.object({
-  code: z.string().trim().regex(/^[0-9A-Za-z.\-]{1,20}$/),
+  code: z
+    .string()
+    .trim()
+    .regex(/^[0-9A-Za-z.\-]{1,20}$/),
   name: z.string().trim().min(2).max(180),
   accountType: z.enum([
     "ASSET",
@@ -120,7 +123,11 @@ function handleError(error: unknown, next: NextFunction) {
   next(error as Error);
 }
 
-export async function getPartners(req: Request, res: Response, next: NextFunction) {
+export async function getPartners(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const query = listPartnersQuerySchema.parse(req.query);
     const data = await listPartners(query);
@@ -131,7 +138,11 @@ export async function getPartners(req: Request, res: Response, next: NextFunctio
   }
 }
 
-export async function getPartnerDetail(req: Request, res: Response, next: NextFunction) {
+export async function getPartnerDetail(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const { id } = uuidParamSchema.parse(req.params);
     const data = await getPartnerById(id);
@@ -142,7 +153,11 @@ export async function getPartnerDetail(req: Request, res: Response, next: NextFu
   }
 }
 
-export async function postPartner(req: Request, res: Response, next: NextFunction) {
+export async function postPartner(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const body = partnerCreateSchema.parse(req.body);
     const data = await createPartner(body);
@@ -153,7 +168,11 @@ export async function postPartner(req: Request, res: Response, next: NextFunctio
   }
 }
 
-export async function patchPartner(req: Request, res: Response, next: NextFunction) {
+export async function patchPartner(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const { id } = uuidParamSchema.parse(req.params);
     const body = partnerUpdateSchema.parse(req.body);
@@ -165,7 +184,11 @@ export async function patchPartner(req: Request, res: Response, next: NextFuncti
   }
 }
 
-export async function getItems(req: Request, res: Response, next: NextFunction) {
+export async function getItems(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const query = listItemsQuerySchema.parse(req.query);
     const data = await listItems(query);
@@ -176,7 +199,11 @@ export async function getItems(req: Request, res: Response, next: NextFunction) 
   }
 }
 
-export async function getItemDetail(req: Request, res: Response, next: NextFunction) {
+export async function getItemDetail(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const { id } = uuidParamSchema.parse(req.params);
     const data = await getItemById(id);
@@ -187,7 +214,11 @@ export async function getItemDetail(req: Request, res: Response, next: NextFunct
   }
 }
 
-export async function postItem(req: Request, res: Response, next: NextFunction) {
+export async function postItem(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const body = itemCreateSchema.parse(req.body);
     const data = await createItem(body);
@@ -198,7 +229,11 @@ export async function postItem(req: Request, res: Response, next: NextFunction) 
   }
 }
 
-export async function patchItem(req: Request, res: Response, next: NextFunction) {
+export async function patchItem(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const { id } = uuidParamSchema.parse(req.params);
     const body = itemUpdateSchema.parse(req.body);
@@ -210,7 +245,11 @@ export async function patchItem(req: Request, res: Response, next: NextFunction)
   }
 }
 
-export async function getAccounts(req: Request, res: Response, next: NextFunction) {
+export async function getAccounts(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const query = listAccountsQuerySchema.parse(req.query);
     const data = await listAccounts(query);
@@ -221,7 +260,11 @@ export async function getAccounts(req: Request, res: Response, next: NextFunctio
   }
 }
 
-export async function getAccountDetail(req: Request, res: Response, next: NextFunction) {
+export async function getAccountDetail(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const { id } = uuidParamSchema.parse(req.params);
     const data = await getAccountById(id);
@@ -232,7 +275,11 @@ export async function getAccountDetail(req: Request, res: Response, next: NextFu
   }
 }
 
-export async function postAccount(req: Request, res: Response, next: NextFunction) {
+export async function postAccount(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const body = accountCreateSchema.parse(req.body);
     const data = await createAccount(body);
@@ -243,7 +290,11 @@ export async function postAccount(req: Request, res: Response, next: NextFunctio
   }
 }
 
-export async function patchAccount(req: Request, res: Response, next: NextFunction) {
+export async function patchAccount(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const { id } = uuidParamSchema.parse(req.params);
     const body = accountUpdateSchema.parse(req.body);
