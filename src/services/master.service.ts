@@ -288,7 +288,12 @@ function normalizeCodePrefixByPartnerType(partnerType: PartnerType) {
 }
 
 function extractRunningNumber(code: string, prefix: string) {
-  const match = code.match(new RegExp(`^${prefix}(\\d+)$`));
+  const escapedPrefix = prefix.replaceAll(
+    /[.*+?^${}()|[\]\\]/g,
+    String.raw`\$&`,
+  );
+  const regex = new RegExp(String.raw`^${escapedPrefix}(\d+)$`);
+  const match = regex.exec(code);
   if (!match) return 0;
   return Number(match[1] ?? "0") || 0;
 }
@@ -306,7 +311,7 @@ async function generateNextPartnerCode(partnerType: PartnerType) {
 
   const maxRunning = existing.reduce((max, row) => {
     const current = extractRunningNumber(row.code, prefix);
-    return current > max ? current : max;
+    return Math.max(max, current);
   }, 0);
 
   return formatRunningCode(prefix, maxRunning + 1);
@@ -321,7 +326,7 @@ async function generateNextItemSku() {
 
   const maxRunning = existing.reduce((max, row) => {
     const current = extractRunningNumber(row.sku, prefix);
-    return current > max ? current : max;
+    return Math.max(max, current);
   }, 0);
 
   return formatRunningCode(prefix, maxRunning + 1);

@@ -89,7 +89,7 @@ const accountCreateSchema = z.object({
   code: z
     .string()
     .trim()
-    .regex(/^[0-9A-Za-z.\-]{1,20}$/),
+    .regex(/^[0-9A-Za-z.-]{1,20}$/),
   name: z.string().trim().min(2).max(180),
   accountType: z.enum([
     "ASSET",
@@ -115,7 +115,7 @@ function handleError(error: unknown, next: NextFunction) {
     const flattened = z.flattenError(error);
     const firstFieldError = Object.values(flattened.fieldErrors)
       .flat()
-      .filter((message): message is string => Boolean(message))[0];
+      .find((message): message is string => Boolean(message));
     next(new ApiError(400, firstFieldError ?? "Validation failed"));
     return;
   }
