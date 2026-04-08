@@ -8,7 +8,8 @@ const envSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
-  FRONTEND_URL: z.url().default("http://localhost:5173"),
+  FRONTEND_URL: z.url().default("http://localhost:8080"),
+  ALLOWED_ORIGINS: z.string().optional(),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   DIRECT_URL: z.string().optional(),
   SUPABASE_URL: z.url("SUPABASE_URL must be a valid URL"),
