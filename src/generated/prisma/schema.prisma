@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum AuthUserRole {
+  CHIEF_ACCOUNTANT
+  STAFF_ACCOUNTANT
+}
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+}
+
+enum PartnerType {
+  CUSTOMER
+  SUPPLIER
+  BOTH
+}
+
+enum ItemType {
+  GOODS
+  SERVICE
+  MATERIAL
+  OTHER
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+  OFF_BALANCE
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum ReminderScope {
+  AR
+  AP
+  BOTH
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model UserProfile {
+  id              String       @id @db.Uuid
+  email           String       @unique @db.VarChar(255)
+  fullName        String?      @map("full_name") @db.VarChar(120)
+  role            AuthUserRole @default(STAFF_ACCOUNTANT)
+  provider        AuthProvider @default(EMAIL)
+  avatarUrl       String?      @map("avatar_url")
+  isEmailVerified Boolean      @default(false) @map("is_email_verified")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  auditLogs AuthAuditLog[]
+
+  @@map("user_profiles")
+}
+
+model AuthAuditLog {
+  id        BigInt        @id @default(autoincrement())
+  userId    String?       @map("user_id") @db.Uuid
+  email     String?       @db.VarChar(255)
+  action    String        @db.VarChar(50)
+  success   Boolean
+  message   String?
+  provider  AuthProvider?
+  role      AuthUserRole?
+  ipAddress String?       @map("ip_address") @db.VarChar(64)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  user UserProfile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([email])
+  @@index([action])
+  @@index([createdAt])
+  @@map("auth_audit_logs")
+}
+
+model Partner {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code             String               @unique @db.VarChar(30)
+  name             String               @db.VarChar(180)
+  partnerType      PartnerType          @default(BOTH) @map("partner_type")
+  taxCode          String?              @map("tax_code") @db.VarChar(30)
+  phone            String?              @db.VarChar(30)
+  email            String?              @db.VarChar(255)
+  address          String?
+  paymentTermDays  Int?                 @map("payment_term_days")
+  creditLimit      Decimal?             @map("credit_limit") @db.Decimal(18, 2)
+  isActive         Boolean              @default(true) @map("is_active")
+  debtReminderOn   Boolean              @default(true) @map("debt_reminder_on")
+  reminderEmail    String?              @map("reminder_email") @db.VarChar(255)
+  reminderCcEmails Json?                @map("reminder_cc_emails")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  debtReminders    DebtReminderConfig[]
+  debtReminderLogs DebtReminderLog[]
+
+  @@index([name])
+  @@index([partnerType])
+  @@index([isActive])
+  @@map("partners")
+}
+
+model Account {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code             String        @unique @db.VarChar(20)
+  name             String        @db.VarChar(180)
+  accountType      AccountType   @map("account_type")
+  normalBalance    NormalBalance @map("normal_balance")
+  parentId         String?       @map("parent_id") @db.Uuid
+  level            Int           @default(1)
+  isPosting        Boolean       @default(true) @map("is_posting")
+  allowManualEntry Boolean       @default(true) @map("allow_manual_entry")
+  isActive         Boolean       @default(true) @map("is_active")
+  sortOrder        Int           @default(0) @map("sort_order")
+  description      String?
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  parent           Account?      @relation("AccountTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children         Account[]     @relation("AccountTree")
+  revenueItems     Item[]        @relation("RevenueAccount")
+  cogsItems        Item[]        @relation("CogsAccount")
+  inventoryItems   Item[]        @relation("InventoryAccount")
+
+  @@index([parentId])
+  @@index([accountType])
+  @@index([isActive])
+  @@map("accounts")
+}
+
+model Item {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku                String   @unique @db.VarChar(40)
+  name               String   @db.VarChar(180)
+  itemType           ItemType @default(GOODS) @map("item_type")
+  unit               String   @db.VarChar(30)
+  salePrice          Decimal? @map("sale_price") @db.Decimal(18, 2)
+  purchasePrice      Decimal? @map("purchase_price") @db.Decimal(18, 2)
+  vatRate            Decimal? @map("vat_rate") @db.Decimal(5, 2)
+  revenueAccountId   String?  @map("revenue_account_id") @db.Uuid
+  cogsAccountId      String?  @map("cogs_account_id") @db.Uuid
+  inventoryAccountId String?  @map("inventory_account_id") @db.Uuid
+  isTrackedInventory Boolean  @default(false) @map("is_tracked_inventory")
+  isActive           Boolean  @default(true) @map("is_active")
+  description        String?
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  revenueAccount     Account? @relation("RevenueAccount", fields: [revenueAccountId], references: [id], onDelete: SetNull)
+  cogsAccount        Account? @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: SetNull)
+  inventoryAccount   Account? @relation("InventoryAccount", fields: [inventoryAccountId], references: [id], onDelete: SetNull)
+
+  @@index([name])
+  @@index([itemType])
+  @@index([isActive])
+  @@map("items")
+}
+
+model DebtReminderConfig {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partnerId      String        @map("partner_id") @db.Uuid
+  scope          ReminderScope @default(BOTH)
+  enabled        Boolean       @default(true)
+  daysBeforeDue  Int           @default(3) @map("days_before_due")
+  daysAfterDue   Int           @default(1) @map("days_after_due")
+  recipientEmail String?       @map("recipient_email") @db.VarChar(255)
+  ccEmails       Json?         @map("cc_emails")
+  lastSentAt     DateTime?     @map("last_sent_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  partner        Partner       @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, scope])
+  @@index([enabled])
+  @@map("debt_reminder_configs")
+}
+
+model DebtReminderLog {
+  id             BigInt         @id @default(autoincrement())
+  partnerId      String         @map("partner_id") @db.Uuid
+  scope          ReminderScope
+  invoiceRef     String?        @map("invoice_ref") @db.VarChar(80)
+  recipientEmail String         @map("recipient_email") @db.VarChar(255)
+  subject        String         @db.VarChar(255)
+  status         ReminderStatus @default(PENDING)
+  errorMessage   String?        @map("error_message")
+  scheduledAt    DateTime       @default(now()) @map("scheduled_at")
+  sentAt         DateTime?      @map("sent_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  partner        Partner        @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("debt_reminder_logs")
+}

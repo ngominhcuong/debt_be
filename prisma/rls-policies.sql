@@ -90,6 +90,21 @@ CREATE POLICY "audit_select_chief"
 -- ============================================================
 -- 4. VERIFY (optional, run after applying policies)
 -- ============================================================
+-- ============================================================
+-- 5. MASTER CATALOG TABLES (backend-only access via service_role)
+-- ============================================================
+-- These tables are managed by backend APIs using service_role.
+-- We enable RLS and intentionally do not add authenticated policies here.
+-- Result: direct client-side PostgREST access is blocked by default.
+ALTER TABLE public.partners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.debt_reminder_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.debt_reminder_logs ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- 6. VERIFY (optional, run after applying policies)
+-- ============================================================
 -- SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual
 -- FROM pg_policies
 -- WHERE tablename IN ('user_profiles', 'auth_audit_logs')
