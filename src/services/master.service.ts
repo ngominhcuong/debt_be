@@ -4,7 +4,7 @@ import {
   NormalBalance,
   PartnerType,
   Prisma,
-} from "../generated/prisma/index";
+} from "../../src/generated/prisma/index";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../utils/api-error";
 

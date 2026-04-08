@@ -1,6 +1,9 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
+-- CreateExtension
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 -- CreateEnum
 CREATE TYPE "AuthUserRole" AS ENUM ('CHIEF_ACCOUNTANT', 'STAFF_ACCOUNTANT');
 
