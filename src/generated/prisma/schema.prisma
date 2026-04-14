@@ -58,6 +58,17 @@ enum ReminderStatus {
   FAILED
 }
 
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+enum JournalRefType {
+  SALES_INVOICE
+  RECEIPT
+}
+
 model UserProfile {
   id              String       @id @db.Uuid
   email           String       @unique @db.VarChar(255)
@@ -69,7 +80,11 @@ model UserProfile {
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
 
-  auditLogs AuthAuditLog[]
+  auditLogs             AuthAuditLog[]
+  voucherAuditLogs      VoucherAuditLog[]
+  postedSalesInvoices   SalesInvoice[]    @relation("SalesInvoicePostedBy")
+  createdJournalEntries JournalEntry[]    @relation("JournalCreatedBy")
+  createdReceipts       Receipt[]         @relation("ReceiptCreatedBy")
 
   @@map("user_profiles")
 }
@@ -95,25 +110,49 @@ model AuthAuditLog {
   @@map("auth_audit_logs")
 }
 
+model VoucherAuditLog {
+  id         BigInt   @id @default(autoincrement())
+  userId     String?  @map("user_id") @db.Uuid
+  userEmail  String?  @map("user_email") @db.VarChar(255)
+  userName   String?  @map("user_name") @db.VarChar(255)
+  action     String   @db.VarChar(50)
+  entityType String   @default("SALES_INVOICE") @map("entity_type") @db.VarChar(50)
+  entityId   String?  @map("entity_id") @db.Uuid
+  entityRef  String?  @map("entity_ref") @db.VarChar(100)
+  detail     String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user UserProfile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+  @@map("voucher_audit_logs")
+}
+
 model Partner {
-  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code             String               @unique @db.VarChar(30)
-  name             String               @db.VarChar(180)
-  partnerType      PartnerType          @default(BOTH) @map("partner_type")
-  taxCode          String?              @map("tax_code") @db.VarChar(30)
-  phone            String?              @db.VarChar(30)
-  email            String?              @db.VarChar(255)
-  address          String?
-  paymentTermDays  Int?                 @map("payment_term_days")
-  creditLimit      Decimal?             @map("credit_limit") @db.Decimal(18, 2)
-  isActive         Boolean              @default(true) @map("is_active")
-  debtReminderOn   Boolean              @default(true) @map("debt_reminder_on")
-  reminderEmail    String?              @map("reminder_email") @db.VarChar(255)
-  reminderCcEmails Json?                @map("reminder_cc_emails")
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
-  debtReminders    DebtReminderConfig[]
-  debtReminderLogs DebtReminderLog[]
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code              String               @unique @db.VarChar(30)
+  name              String               @db.VarChar(180)
+  partnerType       PartnerType          @default(BOTH) @map("partner_type")
+  taxCode           String?              @map("tax_code") @db.VarChar(30)
+  phone             String?              @db.VarChar(30)
+  email             String?              @db.VarChar(255)
+  address           String?
+  paymentTermDays   Int?                 @map("payment_term_days")
+  creditLimit       Decimal?             @map("credit_limit") @db.Decimal(18, 2)
+  isActive          Boolean              @default(true) @map("is_active")
+  debtReminderOn    Boolean              @default(true) @map("debt_reminder_on")
+  reminderEmail     String?              @map("reminder_email") @db.VarChar(255)
+  reminderCcEmails  Json?                @map("reminder_cc_emails")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  debtReminders     DebtReminderConfig[]
+  debtReminderLogs  DebtReminderLog[]
+  salesInvoices     SalesInvoice[]       @relation("SalesInvoiceCustomer")
+  journalEntryLines JournalEntryLine[]   @relation("JournalLinePartner")
+  receipts          Receipt[]            @relation("ReceiptCustomer")
 
   @@index([name])
   @@index([partnerType])
@@ -122,25 +161,28 @@ model Partner {
 }
 
 model Account {
-  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code             String        @unique @db.VarChar(20)
-  name             String        @db.VarChar(180)
-  accountType      AccountType   @map("account_type")
-  normalBalance    NormalBalance @map("normal_balance")
-  parentId         String?       @map("parent_id") @db.Uuid
-  level            Int           @default(1)
-  isPosting        Boolean       @default(true) @map("is_posting")
-  allowManualEntry Boolean       @default(true) @map("allow_manual_entry")
-  isActive         Boolean       @default(true) @map("is_active")
-  sortOrder        Int           @default(0) @map("sort_order")
-  description      String?
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
-  parent           Account?      @relation("AccountTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children         Account[]     @relation("AccountTree")
-  revenueItems     Item[]        @relation("RevenueAccount")
-  cogsItems        Item[]        @relation("CogsAccount")
-  inventoryItems   Item[]        @relation("InventoryAccount")
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code              String               @unique @db.VarChar(20)
+  name              String               @db.VarChar(180)
+  accountType       AccountType          @map("account_type")
+  normalBalance     NormalBalance        @map("normal_balance")
+  parentId          String?              @map("parent_id") @db.Uuid
+  level             Int                  @default(1)
+  isPosting         Boolean              @default(true) @map("is_posting")
+  allowManualEntry  Boolean              @default(true) @map("allow_manual_entry")
+  isActive          Boolean              @default(true) @map("is_active")
+  sortOrder         Int                  @default(0) @map("sort_order")
+  description       String?
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  parent            Account?             @relation("AccountTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children          Account[]            @relation("AccountTree")
+  revenueItems      Item[]               @relation("RevenueAccount")
+  cogsItems         Item[]               @relation("CogsAccount")
+  inventoryItems    Item[]               @relation("InventoryAccount")
+  arAccountDetails  SalesInvoiceDetail[] @relation("ArAccount")
+  revAccountDetails SalesInvoiceDetail[] @relation("RevAccount")
+  journalEntryLines JournalEntryLine[]
 
   @@index([parentId])
   @@index([accountType])
@@ -149,25 +191,26 @@ model Account {
 }
 
 model Item {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sku                String   @unique @db.VarChar(40)
-  name               String   @db.VarChar(180)
-  itemType           ItemType @default(GOODS) @map("item_type")
-  unit               String   @db.VarChar(30)
-  salePrice          Decimal? @map("sale_price") @db.Decimal(18, 2)
-  purchasePrice      Decimal? @map("purchase_price") @db.Decimal(18, 2)
-  vatRate            Decimal? @map("vat_rate") @db.Decimal(5, 2)
-  revenueAccountId   String?  @map("revenue_account_id") @db.Uuid
-  cogsAccountId      String?  @map("cogs_account_id") @db.Uuid
-  inventoryAccountId String?  @map("inventory_account_id") @db.Uuid
-  isTrackedInventory Boolean  @default(false) @map("is_tracked_inventory")
-  isActive           Boolean  @default(true) @map("is_active")
-  description        String?
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-  revenueAccount     Account? @relation("RevenueAccount", fields: [revenueAccountId], references: [id], onDelete: SetNull)
-  cogsAccount        Account? @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: SetNull)
-  inventoryAccount   Account? @relation("InventoryAccount", fields: [inventoryAccountId], references: [id], onDelete: SetNull)
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku                 String               @unique @db.VarChar(40)
+  name                String               @db.VarChar(180)
+  itemType            ItemType             @default(GOODS) @map("item_type")
+  unit                String               @db.VarChar(30)
+  salePrice           Decimal?             @map("sale_price") @db.Decimal(18, 2)
+  purchasePrice       Decimal?             @map("purchase_price") @db.Decimal(18, 2)
+  vatRate             Decimal?             @map("vat_rate") @db.Decimal(5, 2)
+  revenueAccountId    String?              @map("revenue_account_id") @db.Uuid
+  cogsAccountId       String?              @map("cogs_account_id") @db.Uuid
+  inventoryAccountId  String?              @map("inventory_account_id") @db.Uuid
+  isTrackedInventory  Boolean              @default(false) @map("is_tracked_inventory")
+  isActive            Boolean              @default(true) @map("is_active")
+  description         String?
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  revenueAccount      Account?             @relation("RevenueAccount", fields: [revenueAccountId], references: [id], onDelete: SetNull)
+  cogsAccount         Account?             @relation("CogsAccount", fields: [cogsAccountId], references: [id], onDelete: SetNull)
+  inventoryAccount    Account?             @relation("InventoryAccount", fields: [inventoryAccountId], references: [id], onDelete: SetNull)
+  salesInvoiceDetails SalesInvoiceDetail[]
 
   @@index([name])
   @@index([itemType])
@@ -212,4 +255,201 @@ model DebtReminderLog {
   @@index([status])
   @@index([scheduledAt])
   @@map("debt_reminder_logs")
+}
+
+// ─── Warehouse ────────────────────────────────────────────────────────────────
+
+model Warehouse {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String   @unique @db.VarChar(20)
+  name      String   @db.VarChar(120)
+  address   String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  salesInvoiceDetails SalesInvoiceDetail[]
+
+  @@index([isActive])
+  @@map("warehouses")
+}
+
+// ─── Sales Invoice ────────────────────────────────────────────────────────────
+
+model SalesInvoice {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  voucherNumber  String   @unique @map("voucher_number") @db.VarChar(30)
+  voucherDate    DateTime @map("voucher_date") @db.Date
+  accountingDate DateTime @map("accounting_date") @db.Date
+  customerId     String   @map("customer_id") @db.Uuid
+  description    String?
+
+  // Amounts
+  totalAmount Decimal @default(0) @map("total_amount") @db.Decimal(18, 2)
+  vatAmount   Decimal @default(0) @map("vat_amount") @db.Decimal(18, 2)
+  grandTotal  Decimal @default(0) @map("grand_total") @db.Decimal(18, 2)
+
+  // Invoice info
+  invoiceNumber String?       @map("invoice_number") @db.VarChar(30)
+  invoiceSeries String?       @map("invoice_series") @db.VarChar(10)
+  invoiceDate   DateTime?     @map("invoice_date") @db.Date
+  invoiceStatus InvoiceStatus @default(DRAFT) @map("invoice_status")
+
+  // Posting status
+  isPosted   Boolean   @default(false) @map("is_posted")
+  postedAt   DateTime? @map("posted_at")
+  postedById String?   @map("posted_by_id") @db.Uuid
+
+  // Flags
+  isDelivered Boolean @default(false) @map("is_delivered") // Kiêm phiếu xuất kho
+  isInvoiced  Boolean @default(false) @map("is_invoiced") // Lập kèm hóa đơn
+
+  // Extra header fields
+  contactPerson   String?   @map("contact_person") @db.VarChar(120)
+  salesPersonName String?   @map("sales_person_name") @db.VarChar(120)
+  reference       String?   @db.VarChar(80)
+  paymentTermDays Int?      @map("payment_term_days")
+  dueDate         DateTime? @map("due_date") @db.Date
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  customer       Partner              @relation("SalesInvoiceCustomer", fields: [customerId], references: [id])
+  postedBy       UserProfile?         @relation("SalesInvoicePostedBy", fields: [postedById], references: [id], onDelete: SetNull)
+  details        SalesInvoiceDetail[]
+  journalEntries JournalEntry[]
+
+  @@index([voucherDate])
+  @@index([accountingDate])
+  @@index([customerId])
+  @@index([invoiceStatus])
+  @@index([isPosted])
+  @@index([invoiceStatus, isPosted, customerId], name: "idx_si_status_posted_customer")
+  @@index([customerId, invoiceStatus, isPosted, dueDate], name: "idx_si_customer_debt_query")
+  @@map("sales_invoices")
+}
+
+// ─── Sales Invoice Detail ─────────────────────────────────────────────────────
+
+model SalesInvoiceDetail {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId   String  @map("invoice_id") @db.Uuid
+  itemId      String  @map("item_id") @db.Uuid
+  warehouseId String? @map("warehouse_id") @db.Uuid
+  description String? @db.VarChar(255)
+  qty         Decimal @db.Decimal(18, 4)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(18, 2)
+  vatRate     Decimal @default(0) @map("vat_rate") @db.Decimal(5, 2)
+  amount      Decimal @db.Decimal(18, 2)
+
+  // Accounts – defaults (131 / 511) applied at the application layer
+  arAccountId  String? @map("ar_account_id") @db.Uuid
+  revAccountId String? @map("rev_account_id") @db.Uuid
+
+  sortOrder Int @default(0) @map("sort_order")
+
+  invoice    SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  item       Item         @relation(fields: [itemId], references: [id])
+  warehouse  Warehouse?   @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  arAccount  Account?     @relation("ArAccount", fields: [arAccountId], references: [id], onDelete: SetNull)
+  revAccount Account?     @relation("RevAccount", fields: [revAccountId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([itemId])
+  @@map("sales_invoice_details")
+}
+
+// ─── Journal Entry (Bút toán kép) ────────────────────────────────────────────
+
+model JournalEntry {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryNumber    String         @unique @map("entry_number") @db.VarChar(30)
+  accountingDate DateTime       @map("accounting_date") @db.Date
+  description    String?
+  refType        JournalRefType @map("ref_type")
+  refId          String         @map("ref_id") @db.Uuid // polymorphic ref to source document
+  salesInvoiceId String?        @map("sales_invoice_id") @db.Uuid // typed FK for query convenience
+  isReversed     Boolean        @default(false) @map("is_reversed")
+  reversedById   String?        @map("reversed_by_id") @db.Uuid // FK to the reversing entry
+  createdById    String?        @map("created_by_id") @db.Uuid
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  salesInvoice SalesInvoice?      @relation(fields: [salesInvoiceId], references: [id], onDelete: SetNull)
+  createdBy    UserProfile?       @relation("JournalCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  reversedBy   JournalEntry?      @relation("JournalReversal", fields: [reversedById], references: [id], onDelete: SetNull)
+  reversalOf   JournalEntry[]     @relation("JournalReversal")
+  lines        JournalEntryLine[]
+  receipt      Receipt?           @relation("ReceiptJournal")
+
+  @@index([accountingDate])
+  @@index([refType, refId])
+  @@index([salesInvoiceId])
+  @@map("journal_entries")
+}
+
+// ─── Journal Entry Line (Chi tiết Nợ/Có) ─────────────────────────────────────
+
+model JournalEntryLine {
+  id             BigInt  @id @default(autoincrement())
+  journalEntryId String  @map("journal_entry_id") @db.Uuid
+  accountId      String  @map("account_id") @db.Uuid
+  debitAmount    Decimal @default(0) @map("debit_amount") @db.Decimal(18, 2)
+  creditAmount   Decimal @default(0) @map("credit_amount") @db.Decimal(18, 2)
+  description    String? @db.VarChar(255)
+  partnerId      String? @map("partner_id") @db.Uuid // tracing dimension (131/331 sub-ledger)
+  sortOrder      Int     @default(0) @map("sort_order")
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id])
+  partner      Partner?     @relation("JournalLinePartner", fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@index([partnerId])
+  @@index([partnerId, accountId], name: "idx_jel_partner_account")
+  @@map("journal_entry_lines")
+}
+
+// ─── Invoice Setting (Dải hóa đơn) ───────────────────────────────────────────
+
+model InvoiceSetting {
+  id            String   @id @default(uuid()) @db.Uuid
+  year          Int
+  symbol        String   @db.VarChar(20)
+  templateCode  String   @default("1") @map("template_code") @db.VarChar(10)
+  startNumber   Int      @default(1) @map("start_number")
+  currentNumber Int      @default(0) @map("current_number")
+  isActive      Boolean  @default(false) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([year, symbol], name: "uq_invoice_settings_year_symbol")
+  @@index([year])
+  @@map("invoice_settings")
+}
+
+// ─── Receipt (Phiếu thu tiền) ────────────────────────────────────────────────
+
+model Receipt {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiptNumber  String   @unique @map("receipt_number") @db.VarChar(30)
+  receiptDate    DateTime @map("receipt_date") @db.Date
+  accountingDate DateTime @map("accounting_date") @db.Date
+  customerId     String   @map("customer_id") @db.Uuid
+  submitter      String?  @db.VarChar(120) // Người nộp
+  reason         String?  @db.VarChar(255) // Lý do nộp
+  totalAmount    Decimal  @default(0) @map("total_amount") @db.Decimal(18, 2)
+  notes          String?
+  journalEntryId String?  @unique @map("journal_entry_id") @db.Uuid
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  customer     Partner       @relation("ReceiptCustomer", fields: [customerId], references: [id])
+  createdBy    UserProfile?  @relation("ReceiptCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry? @relation("ReceiptJournal", fields: [journalEntryId], references: [id])
+
+  @@index([receiptDate])
+  @@index([customerId])
+  @@map("receipts")
 }

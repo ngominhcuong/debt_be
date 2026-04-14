@@ -146,6 +146,19 @@ exports.Prisma.AuthAuditLogScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.VoucherAuditLogScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  userEmail: 'userEmail',
+  userName: 'userName',
+  action: 'action',
+  entityType: 'entityType',
+  entityId: 'entityId',
+  entityRef: 'entityRef',
+  detail: 'detail',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.PartnerScalarFieldEnum = {
   id: 'id',
   code: 'code',
@@ -229,6 +242,197 @@ exports.Prisma.DebtReminderLogScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.SystemSettingScalarFieldEnum = {
+  key: 'key',
+  value: 'value',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.WarehouseScalarFieldEnum = {
+  id: 'id',
+  code: 'code',
+  name: 'name',
+  address: 'address',
+  isActive: 'isActive',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.SalesInvoiceScalarFieldEnum = {
+  id: 'id',
+  voucherNumber: 'voucherNumber',
+  voucherDate: 'voucherDate',
+  accountingDate: 'accountingDate',
+  customerId: 'customerId',
+  description: 'description',
+  totalAmount: 'totalAmount',
+  vatAmount: 'vatAmount',
+  grandTotal: 'grandTotal',
+  invoiceNumber: 'invoiceNumber',
+  invoiceSeries: 'invoiceSeries',
+  invoiceDate: 'invoiceDate',
+  invoiceStatus: 'invoiceStatus',
+  isPosted: 'isPosted',
+  postedAt: 'postedAt',
+  postedById: 'postedById',
+  isDelivered: 'isDelivered',
+  isInvoiced: 'isInvoiced',
+  contactPerson: 'contactPerson',
+  salesPersonName: 'salesPersonName',
+  reference: 'reference',
+  paymentTermDays: 'paymentTermDays',
+  dueDate: 'dueDate',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.SalesInvoiceDetailScalarFieldEnum = {
+  id: 'id',
+  invoiceId: 'invoiceId',
+  itemId: 'itemId',
+  warehouseId: 'warehouseId',
+  description: 'description',
+  qty: 'qty',
+  unitPrice: 'unitPrice',
+  vatRate: 'vatRate',
+  amount: 'amount',
+  arAccountId: 'arAccountId',
+  revAccountId: 'revAccountId',
+  sortOrder: 'sortOrder'
+};
+
+exports.Prisma.JournalEntryScalarFieldEnum = {
+  id: 'id',
+  entryNumber: 'entryNumber',
+  accountingDate: 'accountingDate',
+  description: 'description',
+  refType: 'refType',
+  refId: 'refId',
+  salesInvoiceId: 'salesInvoiceId',
+  purchaseInvoiceId: 'purchaseInvoiceId',
+  isReversed: 'isReversed',
+  reversedById: 'reversedById',
+  createdById: 'createdById',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.JournalEntryLineScalarFieldEnum = {
+  id: 'id',
+  journalEntryId: 'journalEntryId',
+  accountId: 'accountId',
+  debitAmount: 'debitAmount',
+  creditAmount: 'creditAmount',
+  description: 'description',
+  partnerId: 'partnerId',
+  sortOrder: 'sortOrder'
+};
+
+exports.Prisma.InvoiceSettingScalarFieldEnum = {
+  id: 'id',
+  year: 'year',
+  symbol: 'symbol',
+  templateCode: 'templateCode',
+  startNumber: 'startNumber',
+  currentNumber: 'currentNumber',
+  isActive: 'isActive',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ReceiptScalarFieldEnum = {
+  id: 'id',
+  receiptNumber: 'receiptNumber',
+  receiptDate: 'receiptDate',
+  accountingDate: 'accountingDate',
+  customerId: 'customerId',
+  submitter: 'submitter',
+  reason: 'reason',
+  totalAmount: 'totalAmount',
+  notes: 'notes',
+  journalEntryId: 'journalEntryId',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PurchaseInvoiceScalarFieldEnum = {
+  id: 'id',
+  voucherNumber: 'voucherNumber',
+  voucherDate: 'voucherDate',
+  accountingDate: 'accountingDate',
+  supplierId: 'supplierId',
+  description: 'description',
+  totalAmount: 'totalAmount',
+  vatAmount: 'vatAmount',
+  grandTotal: 'grandTotal',
+  invoiceNumber: 'invoiceNumber',
+  invoiceSeries: 'invoiceSeries',
+  invoiceDate: 'invoiceDate',
+  isPosted: 'isPosted',
+  postedAt: 'postedAt',
+  postedById: 'postedById',
+  paymentTermDays: 'paymentTermDays',
+  dueDate: 'dueDate',
+  contactPerson: 'contactPerson',
+  reference: 'reference',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PurchaseInvoiceDetailScalarFieldEnum = {
+  id: 'id',
+  invoiceId: 'invoiceId',
+  itemId: 'itemId',
+  warehouseId: 'warehouseId',
+  description: 'description',
+  qty: 'qty',
+  unitPrice: 'unitPrice',
+  vatRate: 'vatRate',
+  amount: 'amount',
+  apAccountId: 'apAccountId',
+  expAccountId: 'expAccountId',
+  sortOrder: 'sortOrder'
+};
+
+exports.Prisma.PaymentScalarFieldEnum = {
+  id: 'id',
+  paymentNumber: 'paymentNumber',
+  paymentDate: 'paymentDate',
+  accountingDate: 'accountingDate',
+  supplierId: 'supplierId',
+  recipient: 'recipient',
+  reason: 'reason',
+  totalAmount: 'totalAmount',
+  notes: 'notes',
+  journalEntryId: 'journalEntryId',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.AccountingPeriodScalarFieldEnum = {
+  id: 'id',
+  year: 'year',
+  month: 'month',
+  status: 'status',
+  closedAt: 'closedAt',
+  closedById: 'closedById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.AccountOpeningBalanceScalarFieldEnum = {
+  id: 'id',
+  year: 'year',
+  month: 'month',
+  accountId: 'accountId',
+  debitAmount: 'debitAmount',
+  creditAmount: 'creditAmount',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -303,14 +507,47 @@ exports.ReminderStatus = exports.$Enums.ReminderStatus = {
   FAILED: 'FAILED'
 };
 
+exports.InvoiceStatus = exports.$Enums.InvoiceStatus = {
+  DRAFT: 'DRAFT',
+  ISSUED: 'ISSUED',
+  CANCELLED: 'CANCELLED'
+};
+
+exports.JournalRefType = exports.$Enums.JournalRefType = {
+  SALES_INVOICE: 'SALES_INVOICE',
+  RECEIPT: 'RECEIPT',
+  PURCHASE_INVOICE: 'PURCHASE_INVOICE',
+  PAYMENT: 'PAYMENT',
+  OPENING_BALANCE: 'OPENING_BALANCE'
+};
+
+exports.PeriodStatus = exports.$Enums.PeriodStatus = {
+  OPEN: 'OPEN',
+  CLOSED: 'CLOSED'
+};
+
 exports.Prisma.ModelName = {
   UserProfile: 'UserProfile',
   AuthAuditLog: 'AuthAuditLog',
+  VoucherAuditLog: 'VoucherAuditLog',
   Partner: 'Partner',
   Account: 'Account',
   Item: 'Item',
   DebtReminderConfig: 'DebtReminderConfig',
-  DebtReminderLog: 'DebtReminderLog'
+  DebtReminderLog: 'DebtReminderLog',
+  SystemSetting: 'SystemSetting',
+  Warehouse: 'Warehouse',
+  SalesInvoice: 'SalesInvoice',
+  SalesInvoiceDetail: 'SalesInvoiceDetail',
+  JournalEntry: 'JournalEntry',
+  JournalEntryLine: 'JournalEntryLine',
+  InvoiceSetting: 'InvoiceSetting',
+  Receipt: 'Receipt',
+  PurchaseInvoice: 'PurchaseInvoice',
+  PurchaseInvoiceDetail: 'PurchaseInvoiceDetail',
+  Payment: 'Payment',
+  AccountingPeriod: 'AccountingPeriod',
+  AccountOpeningBalance: 'AccountOpeningBalance'
 };
 
 /**

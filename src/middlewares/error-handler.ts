@@ -24,6 +24,11 @@ export function errorHandler(
 
   if (env.NODE_ENV !== "production") {
     console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message ?? "Internal server error",
+      stack: error?.stack,
+    });
   }
 
   return res.status(500).json({
