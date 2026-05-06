@@ -131,6 +131,7 @@ export interface AutoReminderResult {
   details: { partnerCode: string; result: string }[];
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export async function runAutoReminder(
   forceRun = false,
 ): Promise<AutoReminderResult> {

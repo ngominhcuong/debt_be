@@ -78,6 +78,7 @@ export async function writeVoucherLog(params: {
   userId: string;
   userEmail: string;
   action: string;
+  entityType?: string;
   entityId: string;
   entityRef: string;
   detail: string;
@@ -92,7 +93,7 @@ export async function writeVoucherLog(params: {
       userEmail: params.userEmail,
       userName: profile?.fullName ?? params.userEmail,
       action: params.action,
-      entityType: "SALES_INVOICE",
+      entityType: params.entityType ?? "SALES_INVOICE",
       entityId: params.entityId,
       entityRef: params.entityRef,
       detail: params.detail,

@@ -1,6 +1,7 @@
 import { Prisma } from "../../src/generated/prisma/index";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../utils/api-error";
+import { writeVoucherLog } from "./voucher-audit-log.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -363,66 +364,82 @@ export async function getPurchaseInvoiceById(id: string) {
 export async function createPurchaseInvoice(
   input: CreatePurchaseInvoiceInput,
   userId: string,
+  userEmail: string,
 ) {
-  return prisma.$transaction(async (tx) => {
-    const voucherNumber = await generateVoucherNumber(tx);
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const voucherNumber = await generateVoucherNumber(tx);
 
-    let totalAmount = new Prisma.Decimal(0);
-    let vatAmount = new Prisma.Decimal(0);
+      let totalAmount = new Prisma.Decimal(0);
+      let vatAmount = new Prisma.Decimal(0);
 
-    // Pre-compute totals for header (detail rows created inside buildDetailsAndTotals)
-    for (const d of input.details) {
-      const qty = new Prisma.Decimal(d.qty);
-      const unitPrice = new Prisma.Decimal(d.unitPrice);
-      const vatRate = new Prisma.Decimal(d.vatRate);
-      const line = qty.times(unitPrice);
-      totalAmount = totalAmount.plus(line);
-      vatAmount = vatAmount.plus(line.times(vatRate).div(100));
-    }
-    const grandTotal = totalAmount.plus(vatAmount);
+      // Pre-compute totals for header (detail rows created inside buildDetailsAndTotals)
+      for (const d of input.details) {
+        const qty = new Prisma.Decimal(d.qty);
+        const unitPrice = new Prisma.Decimal(d.unitPrice);
+        const vatRate = new Prisma.Decimal(d.vatRate);
+        const line = qty.times(unitPrice);
+        totalAmount = totalAmount.plus(line);
+        vatAmount = vatAmount.plus(line.times(vatRate).div(100));
+      }
+      const grandTotal = totalAmount.plus(vatAmount);
 
-    const inv = await tx.purchaseInvoice.create({
-      data: {
-        voucherNumber,
-        voucherDate: new Date(input.voucherDate),
-        accountingDate: new Date(input.accountingDate),
-        supplierId: input.supplierId,
-        description: input.description ?? null,
-        totalAmount,
-        vatAmount,
-        grandTotal,
-        invoiceNumber: input.invoiceNumber ?? null,
-        invoiceSeries: input.invoiceSeries ?? null,
-        invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : null,
-        contactPerson: input.contactPerson ?? null,
-        reference: input.reference ?? null,
-        paymentTermDays: input.paymentTermDays ?? null,
-        dueDate: input.dueDate ? new Date(input.dueDate) : null,
-        notes: input.notes ?? null,
-        isPosted: input.isPosted,
-        postedAt: input.isPosted ? new Date() : null,
-        postedById: input.isPosted ? userId : null,
-      },
-    });
-
-    await buildDetailsAndTotals(tx, inv.id, input.details);
-
-    if (input.isPosted) {
-      await postJournal(tx, {
-        invoiceId: inv.id,
-        voucherNumber,
-        accountingDate: input.accountingDate,
-        supplierId: input.supplierId,
-        userId,
-        totalAmount,
-        vatAmount,
-        grandTotal,
-        details: input.details,
+      const inv = await tx.purchaseInvoice.create({
+        data: {
+          voucherNumber,
+          voucherDate: new Date(input.voucherDate),
+          accountingDate: new Date(input.accountingDate),
+          supplierId: input.supplierId,
+          description: input.description ?? null,
+          totalAmount,
+          vatAmount,
+          grandTotal,
+          invoiceNumber: input.invoiceNumber ?? null,
+          invoiceSeries: input.invoiceSeries ?? null,
+          invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : null,
+          contactPerson: input.contactPerson ?? null,
+          reference: input.reference ?? null,
+          paymentTermDays: input.paymentTermDays ?? null,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          notes: input.notes ?? null,
+          isPosted: input.isPosted,
+          postedAt: input.isPosted ? new Date() : null,
+          postedById: input.isPosted ? userId : null,
+        },
       });
-    }
 
-    return { id: inv.id, voucherNumber };
-  });
+      await buildDetailsAndTotals(tx, inv.id, input.details);
+
+      if (input.isPosted) {
+        await postJournal(tx, {
+          invoiceId: inv.id,
+          voucherNumber,
+          accountingDate: input.accountingDate,
+          supplierId: input.supplierId,
+          userId,
+          totalAmount,
+          vatAmount,
+          grandTotal,
+          details: input.details,
+        });
+      }
+
+      return { id: inv.id, voucherNumber };
+    },
+    { timeout: 15000 },
+  );
+
+  await writeVoucherLog({
+    userId,
+    userEmail,
+    action: "CREATE",
+    entityType: "purchase_invoice",
+    entityId: result.id,
+    entityRef: result.voucherNumber,
+    detail: `Tạo chứng từ mua hàng ${result.voucherNumber}`,
+  }).catch(() => undefined);
+
+  return result;
 }
 
 // ─── Update ───────────────────────────────────────────────────────────────────
@@ -437,64 +454,67 @@ export async function updatePurchaseInvoice(
   if (existing.isPosted)
     throw new ApiError(400, "Chứng từ đã ghi sổ, không thể sửa");
 
-  return prisma.$transaction(async (tx) => {
-    // Delete old details if new ones provided
-    if (input.details) {
-      await tx.purchaseInvoiceDetail.deleteMany({ where: { invoiceId: id } });
-    }
-
-    let totalAmount = existing.totalAmount;
-    let vatAmount = existing.vatAmount;
-    let grandTotal = existing.grandTotal;
-
-    if (input.details) {
-      totalAmount = new Prisma.Decimal(0);
-      vatAmount = new Prisma.Decimal(0);
-      for (const d of input.details) {
-        const line = new Prisma.Decimal(d.qty).times(
-          new Prisma.Decimal(d.unitPrice),
-        );
-        totalAmount = totalAmount.plus(line);
-        vatAmount = vatAmount.plus(
-          line.times(new Prisma.Decimal(d.vatRate)).div(100),
-        );
+  return prisma.$transaction(
+    async (tx) => {
+      // Delete old details if new ones provided
+      if (input.details) {
+        await tx.purchaseInvoiceDetail.deleteMany({ where: { invoiceId: id } });
       }
-      grandTotal = totalAmount.plus(vatAmount);
-    }
 
-    const updated = await tx.purchaseInvoice.update({
-      where: { id },
-      data: {
-        voucherDate: input.voucherDate
-          ? new Date(input.voucherDate)
-          : undefined,
-        accountingDate: input.accountingDate
-          ? new Date(input.accountingDate)
-          : undefined,
-        supplierId: input.supplierId,
-        description: input.description,
-        totalAmount: input.details ? totalAmount : undefined,
-        vatAmount: input.details ? vatAmount : undefined,
-        grandTotal: input.details ? grandTotal : undefined,
-        invoiceNumber: input.invoiceNumber,
-        invoiceSeries: input.invoiceSeries,
-        invoiceDate: input.invoiceDate
-          ? new Date(input.invoiceDate)
-          : undefined,
-        contactPerson: input.contactPerson,
-        reference: input.reference,
-        paymentTermDays: input.paymentTermDays,
-        dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
-        notes: input.notes,
-      },
-    });
+      let totalAmount = existing.totalAmount;
+      let vatAmount = existing.vatAmount;
+      let grandTotal = existing.grandTotal;
 
-    if (input.details) {
-      await buildDetailsAndTotals(tx, id, input.details);
-    }
+      if (input.details) {
+        totalAmount = new Prisma.Decimal(0);
+        vatAmount = new Prisma.Decimal(0);
+        for (const d of input.details) {
+          const line = new Prisma.Decimal(d.qty).times(
+            new Prisma.Decimal(d.unitPrice),
+          );
+          totalAmount = totalAmount.plus(line);
+          vatAmount = vatAmount.plus(
+            line.times(new Prisma.Decimal(d.vatRate)).div(100),
+          );
+        }
+        grandTotal = totalAmount.plus(vatAmount);
+      }
 
-    return { id: updated.id, voucherNumber: updated.voucherNumber };
-  });
+      const updated = await tx.purchaseInvoice.update({
+        where: { id },
+        data: {
+          voucherDate: input.voucherDate
+            ? new Date(input.voucherDate)
+            : undefined,
+          accountingDate: input.accountingDate
+            ? new Date(input.accountingDate)
+            : undefined,
+          supplierId: input.supplierId,
+          description: input.description,
+          totalAmount: input.details ? totalAmount : undefined,
+          vatAmount: input.details ? vatAmount : undefined,
+          grandTotal: input.details ? grandTotal : undefined,
+          invoiceNumber: input.invoiceNumber,
+          invoiceSeries: input.invoiceSeries,
+          invoiceDate: input.invoiceDate
+            ? new Date(input.invoiceDate)
+            : undefined,
+          contactPerson: input.contactPerson,
+          reference: input.reference,
+          paymentTermDays: input.paymentTermDays,
+          dueDate: input.dueDate ? new Date(input.dueDate) : undefined,
+          notes: input.notes,
+        },
+      });
+
+      if (input.details) {
+        await buildDetailsAndTotals(tx, id, input.details);
+      }
+
+      return { id: updated.id, voucherNumber: updated.voucherNumber };
+    },
+    { timeout: 15000 },
+  );
 }
 
 // ─── Post (Ghi sổ) ────────────────────────────────────────────────────────────
@@ -507,36 +527,39 @@ export async function postPurchaseInvoice(id: string, userId: string) {
   if (!inv) throw new ApiError(404, "Không tìm thấy chứng từ");
   if (inv.isPosted) throw new ApiError(400, "Chứng từ đã ghi sổ");
 
-  await prisma.$transaction(async (tx) => {
-    await tx.purchaseInvoice.update({
-      where: { id },
-      data: { isPosted: true, postedAt: new Date(), postedById: userId },
-    });
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.purchaseInvoice.update({
+        where: { id },
+        data: { isPosted: true, postedAt: new Date(), postedById: userId },
+      });
 
-    const detailInputs: CreatePurchaseInvoiceDetailInput[] = inv.details.map(
-      (d) => ({
-        itemId: d.itemId,
-        warehouseId: d.warehouseId ?? undefined,
-        qty: Number.parseFloat(d.qty.toString()),
-        unitPrice: Number.parseFloat(d.unitPrice.toString()),
-        vatRate: Number.parseFloat(d.vatRate.toString()),
-        apAccountId: d.apAccountId ?? undefined,
-        expAccountId: d.expAccountId ?? undefined,
-      }),
-    );
+      const detailInputs: CreatePurchaseInvoiceDetailInput[] = inv.details.map(
+        (d) => ({
+          itemId: d.itemId,
+          warehouseId: d.warehouseId ?? undefined,
+          qty: Number.parseFloat(d.qty.toString()),
+          unitPrice: Number.parseFloat(d.unitPrice.toString()),
+          vatRate: Number.parseFloat(d.vatRate.toString()),
+          apAccountId: d.apAccountId ?? undefined,
+          expAccountId: d.expAccountId ?? undefined,
+        }),
+      );
 
-    await postJournal(tx, {
-      invoiceId: id,
-      voucherNumber: inv.voucherNumber,
-      accountingDate: inv.accountingDate.toISOString().slice(0, 10),
-      supplierId: inv.supplierId,
-      userId,
-      totalAmount: inv.totalAmount,
-      vatAmount: inv.vatAmount,
-      grandTotal: inv.grandTotal,
-      details: detailInputs,
-    });
-  });
+      await postJournal(tx, {
+        invoiceId: id,
+        voucherNumber: inv.voucherNumber,
+        accountingDate: inv.accountingDate.toISOString().slice(0, 10),
+        supplierId: inv.supplierId,
+        userId,
+        totalAmount: inv.totalAmount,
+        vatAmount: inv.vatAmount,
+        grandTotal: inv.grandTotal,
+        details: detailInputs,
+      });
+    },
+    { timeout: 15000 },
+  );
 
   return {
     id,

@@ -1,4 +1,5 @@
 import { supabaseAdminClient, supabaseAuthClient } from "../config/supabase";
+import { Prisma } from "../generated/prisma";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../utils/api-error";
 
@@ -536,6 +537,48 @@ export async function changePassword(
   });
 
   return { message: "Password changed successfully" };
+}
+
+export async function listUserProfiles(params: {
+  q?: string;
+  role?: UserRole;
+  page?: number;
+  limit?: number;
+}) {
+  const { q, role, page = 1, limit = 20 } = params;
+  const skip = (page - 1) * limit;
+
+  const where: Prisma.UserProfileWhereInput = {};
+  if (role) where.role = role;
+  if (q) {
+    where.OR = [
+      { email: { contains: q, mode: "insensitive" } },
+      { fullName: { contains: q, mode: "insensitive" } },
+    ];
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.userProfile.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        provider: true,
+        avatarUrl: true,
+        isEmailVerified: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.userProfile.count({ where }),
+  ]);
+
+  return { rows, total, page, limit };
 }
 
 export function mapServiceError(error: unknown) {

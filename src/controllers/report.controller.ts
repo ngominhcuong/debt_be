@@ -4,9 +4,9 @@ import {
   getLedger,
   getReconciliation,
   getManagementReport,
+  getDashboardStats,
 } from "../services/report.service";
-
-const uuidStr = z.string().uuid();
+const uuidStr = z.uuid();
 const dateStr = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -25,13 +25,11 @@ export async function getLedgerHandler(
     });
     const parsed = schema.safeParse(req.query);
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Validation failed",
-          errors: parsed.error.flatten().fieldErrors,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: z.flattenError(parsed.error).fieldErrors,
+      });
       return;
     }
     const data = await getLedger(parsed.data);
@@ -55,13 +53,11 @@ export async function getReconciliationHandler(
     });
     const parsed = schema.safeParse(req.query);
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Validation failed",
-          errors: parsed.error.flatten().fieldErrors,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: z.flattenError(parsed.error).fieldErrors,
+      });
       return;
     }
     const data = await getReconciliation(parsed.data);
@@ -87,16 +83,27 @@ export async function getManagementReportHandler(
     });
     const parsed = schema.safeParse(req.query);
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Validation failed",
-          errors: parsed.error.flatten().fieldErrors,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: z.flattenError(parsed.error).fieldErrors,
+      });
       return;
     }
     const data = await getManagementReport(parsed.data);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getDashboardHandler(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data = await getDashboardStats();
     res.json({ success: true, data });
   } catch (err) {
     next(err);

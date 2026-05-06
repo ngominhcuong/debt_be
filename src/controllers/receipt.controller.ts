@@ -6,10 +6,10 @@ import {
   createReceipt,
 } from "../services/receipt.service";
 
-const uuidParam = z.object({ id: z.string().uuid() });
+const uuidParam = z.object({ id: z.uuid() });
 
 const createReceiptSchema = z.object({
-  customerId: z.string().uuid(),
+  customerId: z.uuid(),
   receiptDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   accountingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   submitter: z.string().max(120).optional(),
@@ -18,8 +18,8 @@ const createReceiptSchema = z.object({
   lines: z
     .array(
       z.object({
-        debitAccountId: z.string().uuid(),
-        creditAccountId: z.string().uuid(),
+        debitAccountId: z.uuid(),
+        creditAccountId: z.uuid(),
         amount: z.number().positive(),
         description: z.string().max(255),
       }),
@@ -57,7 +57,7 @@ export async function createReceiptHandler(
       res.status(400).json({
         success: false,
         message: "Validation failed",
-        errors: parsed.error.flatten().fieldErrors,
+        errors: z.flattenError(parsed.error).fieldErrors,
       });
       return;
     }

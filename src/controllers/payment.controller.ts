@@ -6,10 +6,10 @@ import {
   createPayment,
 } from "../services/payment.service";
 
-const uuidParam = z.object({ id: z.string().uuid() });
+const uuidParam = z.object({ id: z.uuid() });
 
 const createPaymentSchema = z.object({
-  supplierId: z.string().uuid(),
+  supplierId: z.uuid(),
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   accountingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   recipient: z.string().max(120).optional(),
@@ -18,8 +18,8 @@ const createPaymentSchema = z.object({
   lines: z
     .array(
       z.object({
-        debitAccountId: z.string().uuid(),
-        creditAccountId: z.string().uuid(),
+        debitAccountId: z.uuid(),
+        creditAccountId: z.uuid(),
         amount: z.number().positive(),
         description: z.string().max(255),
       }),
@@ -57,7 +57,7 @@ export async function createPaymentHandler(
       res.status(400).json({
         success: false,
         message: "Validation failed",
-        errors: parsed.error.flatten().fieldErrors,
+        errors: z.flattenError(parsed.error).fieldErrors,
       });
       return;
     }

@@ -49,7 +49,7 @@ export async function getPeriodInfoHandler(
 const saveBalancesBody = z.object({
   balances: z.array(
     z.object({
-      accountId: z.string().uuid(),
+      accountId: z.uuid(),
       debitAmount: z.number().min(0),
       creditAmount: z.number().min(0),
     }),

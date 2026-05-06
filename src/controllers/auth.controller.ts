@@ -4,6 +4,7 @@ import {
   changePassword as changePasswordService,
   forgotPassword as forgotPasswordService,
   getGoogleOAuthUrl,
+  listUserProfiles,
   loginWithEmail,
   loginWithGoogle,
   mapServiceError,
@@ -169,8 +170,8 @@ export async function getGoogleOauthUrl(
 }
 
 const syncProfileSchema = z.object({
-  fullName: z.string().min(2).max(120).optional(),
-  avatarUrl: z.url().optional(),
+  fullName: z.string().min(1).max(120).optional(),
+  avatarUrl: z.string().optional(),
   provider: z.enum(["EMAIL", "GOOGLE"]).optional(),
   role: roleSchema.optional(),
 });
@@ -239,6 +240,34 @@ export async function changePassword(
     );
 
     return res.status(200).json({ success: true, message: result.message });
+  } catch (error) {
+    return next(mapServiceError(error));
+  }
+}
+
+const listUsersSchema = z.object({
+  q: z.string().optional(),
+  role: roleSchema.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export async function listUsers(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const parsed = listUsersSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: z.flattenError(parsed.error).fieldErrors,
+      });
+    }
+    const result = await listUserProfiles(parsed.data);
+    return res.status(200).json({ success: true, data: result });
   } catch (error) {
     return next(mapServiceError(error));
   }

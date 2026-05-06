@@ -12,21 +12,21 @@ const SELLER_TAX = process.env.SELLER_TAX ?? "2301305030";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtN(val: unknown): string {
-  let n: number;
   if (val == null) return "0";
-  if (typeof val === "object") {
-    n = parseFloat(val.toString());
-  } else {
-    n = parseFloat(String(val));
+  let n = 0;
+  if (typeof val === "number") {
+    n = val;
+  } else if (typeof val === "string") {
+    n = Number.parseFloat(val);
   }
-  if (isNaN(n)) return "0";
+  if (Number.isNaN(n)) return "0";
   return new Intl.NumberFormat("vi-VN").format(n);
 }
 
 function fmtDate(val: string | Date | null | undefined): string {
   if (!val) return "—";
   const d = val instanceof Date ? val : new Date(val);
-  if (isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "—";
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
@@ -41,10 +41,10 @@ function buildInvoiceEmailHtml(
 
   const rows = invoice.details
     .map((d, i) => {
-      const lineAmt = parseFloat(d.amount != null ? d.amount.toString() : "0");
-      const vatRate = parseFloat(
-        d.vatRate != null ? d.vatRate.toString() : "0",
-      );
+      const amountText = typeof d.amount === "string" ? d.amount : "0";
+      const vatRateText = typeof d.vatRate === "string" ? d.vatRate : "0";
+      const lineAmt = Number.parseFloat(amountText);
+      const vatRate = Number.parseFloat(vatRateText);
       const lineVat = lineAmt * (vatRate / 100);
       return `
       <tr style="background:${i % 2 === 0 ? "#f4f7ff" : "#fff"}">
@@ -175,9 +175,9 @@ function buildInvoiceEmailHtml(
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface InvoiceEmailData {
-  invoiceDate: string | Date | null;
-  accountingDate: string | Date | null;
-  dueDate: string | Date | null;
+  invoiceDate: NullableDateValue;
+  accountingDate: NullableDateValue;
+  dueDate: NullableDateValue;
   invoiceNumber: string | null;
   invoiceSeries: string | null;
   voucherNumber: string;
@@ -202,6 +202,8 @@ interface InvoiceEmailData {
   }[];
 }
 
+type NullableDateValue = string | Date | null;
+
 export interface SendInvoiceInput {
   to: string; // primary recipient (editable by user)
   cc?: string[]; // optional CC
@@ -216,6 +218,8 @@ export async function sendInvoiceEmail(
   userId: string,
   userEmail: string,
 ): Promise<void> {
+  const ccText = input.cc?.length ? `, CC: ${input.cc.join(", ")}` : "";
+
   // 1. Load invoice with customer
   const invoice = await prisma.salesInvoice.findUnique({
     where: { id: invoiceId },
@@ -281,7 +285,7 @@ export async function sendInvoiceEmail(
     action: "SEND_EMAIL",
     entityId: invoiceId,
     entityRef: invoice.voucherNumber,
-    detail: `Gửi hóa đơn ${invoice.invoiceNumber ?? invoice.voucherNumber} qua email đến ${input.to}${input.cc?.length ? `, CC: ${input.cc.join(", ")}` : ""}`,
+    detail: `Gửi hóa đơn ${invoice.invoiceNumber ?? invoice.voucherNumber} qua email đến ${input.to}${ccText}`,
   }).catch(() => undefined);
 }
 

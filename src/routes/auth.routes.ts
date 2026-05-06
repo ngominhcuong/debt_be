@@ -4,13 +4,17 @@ import {
   forgotPassword,
   getGoogleOauthUrl,
   googleAuth,
+  listUsers,
   login,
   register,
   resendOtp,
   syncProfile,
   verifyOtp,
 } from "../controllers/auth.controller";
-import { authenticate } from "../middlewares/authenticate";
+import {
+  authenticate,
+  requireChiefAccountant,
+} from "../middlewares/authenticate";
 
 export const authRouter = Router();
 
@@ -23,3 +27,4 @@ authRouter.get("/google/oauth-url", getGoogleOauthUrl);
 authRouter.post("/sync-profile", authenticate, syncProfile);
 authRouter.post("/forgot-password", forgotPassword);
 authRouter.post("/change-password", authenticate, changePassword);
+authRouter.get("/users", authenticate, requireChiefAccountant, listUsers);

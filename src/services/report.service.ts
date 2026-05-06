@@ -11,6 +11,7 @@ export interface LedgerLine {
   refType: string;
   docNumber: string | null;
   description: string | null;
+  counterAccountCodes: string;
   partner: { id: string; code: string; name: string } | null;
   debitAmount: number;
   creditAmount: number;
@@ -120,6 +121,99 @@ const journalEntrySelect = {
   payment: { select: { paymentNumber: true } },
 } as const;
 
+async function getLedgerOpeningState(accountId: string, dateFrom?: string) {
+  if (!dateFrom) {
+    return { openingDebit: 0, openingCredit: 0, openingBalance: 0 };
+  }
+
+  const df = new Date(dateFrom);
+  const dfYear = df.getFullYear();
+  const dfMonth = df.getMonth() + 1;
+
+  const storedOpening = await prisma.accountOpeningBalance.findFirst({
+    where: {
+      accountId,
+      OR: [{ year: { lt: dfYear } }, { year: dfYear, month: { lte: dfMonth } }],
+    },
+    orderBy: [{ year: "desc" }, { month: "desc" }],
+  });
+
+  if (!storedOpening) {
+    const aggregate = await prisma.journalEntryLine.aggregate({
+      where: {
+        accountId,
+        journalEntry: { accountingDate: { lt: df } },
+      },
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+
+    const openingDebit = Number(aggregate._sum.debitAmount ?? 0);
+    const openingCredit = Number(aggregate._sum.creditAmount ?? 0);
+    return {
+      openingDebit,
+      openingCredit,
+      openingBalance: openingDebit - openingCredit,
+    };
+  }
+
+  const storedDebit = Number(storedOpening.debitAmount);
+  const storedCredit = Number(storedOpening.creditAmount);
+  const storedPeriodStart = new Date(
+    storedOpening.year,
+    storedOpening.month - 1,
+    1,
+  );
+
+  if (storedPeriodStart >= df) {
+    return {
+      openingDebit: storedDebit,
+      openingCredit: storedCredit,
+      openingBalance: storedDebit - storedCredit,
+    };
+  }
+
+  const adjustment = await prisma.journalEntryLine.aggregate({
+    where: {
+      accountId,
+      journalEntry: {
+        accountingDate: { gte: storedPeriodStart, lt: df },
+      },
+    },
+    _sum: { debitAmount: true, creditAmount: true },
+  });
+
+  const openingDebit = storedDebit + Number(adjustment._sum.debitAmount ?? 0);
+  const openingCredit =
+    storedCredit + Number(adjustment._sum.creditAmount ?? 0);
+  return {
+    openingDebit,
+    openingCredit,
+    openingBalance: openingDebit - openingCredit,
+  };
+}
+
+async function getLedgerCounterpartMap(entryIds: string[]) {
+  if (entryIds.length === 0) return new Map<string, string[]>();
+
+  const entryCounterparts = await prisma.journalEntryLine.findMany({
+    where: { journalEntryId: { in: entryIds } },
+    select: {
+      journalEntryId: true,
+      accountId: true,
+      account: { select: { code: true } },
+    },
+  });
+
+  const counterpartMap = new Map<string, string[]>();
+  for (const line of entryCounterparts) {
+    const existing = counterpartMap.get(line.journalEntryId) ?? [];
+    existing.push(`${line.accountId}:${line.account.code}`);
+    counterpartMap.set(line.journalEntryId, existing);
+  }
+
+  return counterpartMap;
+}
+
 // ── Sổ Cái Tài Khoản (General Ledger) ────────────────────────────────────────
 
 export async function getLedger(params: {
@@ -135,67 +229,8 @@ export async function getLedger(params: {
   });
   if (!account) throw new ApiError(404, "Tài khoản không tồn tại");
 
-  // Opening balance: use stored AccountOpeningBalance as base when available,
-  // then sum JELs from that period's start up to (exclusive) dateFrom.
-  let openingDebit = 0;
-  let openingCredit = 0;
-  if (dateFrom) {
-    const df = new Date(dateFrom);
-    const dfYear = df.getFullYear();
-    const dfMonth = df.getMonth() + 1; // 1-indexed
-
-    // Find the most recent stored opening balance at or before dateFrom's year/month
-    const storedOpening = await prisma.accountOpeningBalance.findFirst({
-      where: {
-        accountId,
-        OR: [
-          { year: { lt: dfYear } },
-          { year: dfYear, month: { lte: dfMonth } },
-        ],
-      },
-      orderBy: [{ year: "desc" }, { month: "desc" }],
-    });
-
-    if (storedOpening) {
-      // Start from that stored balance
-      const storedDebit = Number(storedOpening.debitAmount);
-      const storedCredit = Number(storedOpening.creditAmount);
-      // Then add JELs from start of that stored period to dateFrom (exclusive)
-      const storedPeriodStart = new Date(
-        storedOpening.year,
-        storedOpening.month - 1,
-        1,
-      );
-      if (storedPeriodStart < df) {
-        const adj = await prisma.journalEntryLine.aggregate({
-          where: {
-            accountId,
-            journalEntry: {
-              accountingDate: { gte: storedPeriodStart, lt: df },
-            },
-          },
-          _sum: { debitAmount: true, creditAmount: true },
-        });
-        openingDebit = storedDebit + Number(adj._sum.debitAmount ?? 0);
-        openingCredit = storedCredit + Number(adj._sum.creditAmount ?? 0);
-      } else {
-        openingDebit = storedDebit;
-        openingCredit = storedCredit;
-      }
-    } else {
-      // Fallback: sum all JELs before dateFrom (original behaviour)
-      const agg = await prisma.journalEntryLine.aggregate({
-        where: {
-          accountId,
-          journalEntry: { accountingDate: { lt: df } },
-        },
-        _sum: { debitAmount: true, creditAmount: true },
-      });
-      openingDebit = Number(agg._sum.debitAmount ?? 0);
-      openingCredit = Number(agg._sum.creditAmount ?? 0);
-    }
-  }
-  const openingBalance = openingDebit - openingCredit;
+  const { openingDebit, openingCredit, openingBalance } =
+    await getLedgerOpeningState(accountId, dateFrom);
 
   // Build period filter
   const journalEntryWhere: Prisma.JournalEntryWhereInput = {};
@@ -228,6 +263,9 @@ export async function getLedger(params: {
     take: 1000, // practical cap; filtered by date range
   });
 
+  const entryIds = [...new Set(rawLines.map((line) => line.journalEntryId))];
+  const counterpartMap = await getLedgerCounterpartMap(entryIds);
+
   // Period totals
   const periodAgg = await prisma.journalEntryLine.aggregate({
     where: lineWhere,
@@ -250,6 +288,13 @@ export async function getLedger(params: {
       refType: l.journalEntry.refType,
       docNumber: getDocNumber(l.journalEntry),
       description: l.description ?? l.journalEntry.description,
+      counterAccountCodes: Array.from(
+        new Set(
+          (counterpartMap.get(l.journalEntryId) ?? [])
+            .filter((item) => !item.startsWith(`${l.accountId}:`))
+            .map((item) => item.split(":")[1] ?? item),
+        ),
+      ).join(", "),
       partner: l.partner
         ? { id: l.partner.id, code: l.partner.code, name: l.partner.name }
         : null,
@@ -406,8 +451,9 @@ export async function getManagementReport(params: {
   const periodEnd = dateTo
     ? Prisma.sql`AND je.accounting_date <= ${new Date(dateTo)}`
     : Prisma.empty;
+  const searchKeyword = q ? `%${q}%` : null;
   const searchCond = q
-    ? Prisma.sql`AND (p.name ILIKE ${`%${q}%`} OR p.code ILIKE ${`%${q}%`})`
+    ? Prisma.sql`AND (p.name ILIKE ${searchKeyword} OR p.code ILIKE ${searchKeyword})`
     : Prisma.empty;
 
   type RawRow = {
@@ -510,4 +556,241 @@ export async function getManagementReport(params: {
   );
 
   return { rows: managementRows, totals, total, page, limit };
+}
+
+// ── Dashboard Stats ───────────────────────────────────────────────────────────
+
+export interface DashboardMonthData {
+  month: string;
+  thu: number; // million VND
+  chi: number; // million VND
+}
+
+export interface DashboardAgingRow {
+  range: string;
+  amount: number; // million VND
+}
+
+export interface DashboardRecentInvoice {
+  id: string;
+  voucherNumber: string;
+  partner: string;
+  grandTotal: string;
+  dueDate: string | null;
+  status: "overdue" | "unpaid" | "cancelled";
+}
+
+export interface DashboardStats {
+  totalAR: number;
+  totalAP: number;
+  overdueAR: number;
+  overdueARCount: number;
+  monthlyData: DashboardMonthData[];
+  arAging: DashboardAgingRow[];
+  recentInvoices: DashboardRecentInvoice[];
+}
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1);
+
+  const [
+    arAccounts,
+    apAccounts,
+    arInvoiceAgg,
+    apInvoiceAgg,
+    overdueInvoices,
+    recentSales,
+    salesLast6,
+    purchaseLast6,
+    allIssuedInvoices,
+  ] = await Promise.all([
+    prisma.account.findMany({
+      where: { code: { startsWith: "131" }, isActive: true },
+      select: { id: true },
+    }),
+    prisma.account.findMany({
+      where: { code: { startsWith: "331" }, isActive: true },
+      select: { id: true },
+    }),
+    prisma.salesInvoice.aggregate({
+      where: { invoiceStatus: "ISSUED", isPosted: true },
+      _sum: { grandTotal: true },
+    }),
+    prisma.purchaseInvoice.aggregate({
+      where: { isPosted: true },
+      _sum: { grandTotal: true },
+    }),
+    prisma.salesInvoice.findMany({
+      where: {
+        invoiceStatus: "ISSUED",
+        isPosted: true,
+        dueDate: { lt: today },
+      },
+      select: { grandTotal: true },
+    }),
+    prisma.salesInvoice.findMany({
+      where: { isPosted: true },
+      orderBy: { voucherDate: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        voucherNumber: true,
+        grandTotal: true,
+        dueDate: true,
+        invoiceStatus: true,
+        customer: { select: { name: true } },
+      },
+    }),
+    prisma.salesInvoice.findMany({
+      where: {
+        invoiceStatus: "ISSUED",
+        isPosted: true,
+        voucherDate: { gte: sixMonthsAgo },
+      },
+      select: { voucherDate: true, grandTotal: true },
+    }),
+    prisma.purchaseInvoice.findMany({
+      where: { isPosted: true, voucherDate: { gte: sixMonthsAgo } },
+      select: { voucherDate: true, grandTotal: true },
+    }),
+    prisma.salesInvoice.findMany({
+      where: { invoiceStatus: "ISSUED", isPosted: true },
+      select: { grandTotal: true, dueDate: true },
+    }),
+  ]);
+
+  const arAccountIds = arAccounts.map((a) => a.id);
+  const apAccountIds = apAccounts.map((a) => a.id);
+
+  // AR paid = total credits on 131* accounts
+  let totalARPaid = 0;
+  if (arAccountIds.length > 0) {
+    const agg = await prisma.journalEntryLine.aggregate({
+      where: {
+        accountId: { in: arAccountIds },
+        journalEntry: { isReversed: false },
+      },
+      _sum: { creditAmount: true },
+    });
+    totalARPaid = Number(agg._sum.creditAmount ?? 0);
+  }
+
+  // AP paid = total debits on 331* accounts
+  let totalAPPaid = 0;
+  if (apAccountIds.length > 0) {
+    const agg = await prisma.journalEntryLine.aggregate({
+      where: {
+        accountId: { in: apAccountIds },
+        journalEntry: { isReversed: false },
+      },
+      _sum: { debitAmount: true },
+    });
+    totalAPPaid = Number(agg._sum.debitAmount ?? 0);
+  }
+
+  const totalAR = Math.max(
+    0,
+    Number(arInvoiceAgg._sum.grandTotal ?? 0) - totalARPaid,
+  );
+  const totalAP = Math.max(
+    0,
+    Number(apInvoiceAgg._sum.grandTotal ?? 0) - totalAPPaid,
+  );
+  const overdueARCount = overdueInvoices.length;
+  const overdueAR = overdueInvoices.reduce(
+    (s, i) => s + Number(i.grandTotal),
+    0,
+  );
+
+  // Monthly data: last 6 months
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - (5 - i), 1);
+    return {
+      year: d.getFullYear(),
+      month: d.getMonth() + 1,
+      label: `T${d.getMonth() + 1}`,
+    };
+  });
+
+  const monthlyData: DashboardMonthData[] = months.map(
+    ({ year, month, label }) => {
+      const thu = salesLast6
+        .filter((inv) => {
+          const d = new Date(inv.voucherDate);
+          return d.getFullYear() === year && d.getMonth() + 1 === month;
+        })
+        .reduce((s, inv) => s + Number(inv.grandTotal) / 1_000_000, 0);
+      const chi = purchaseLast6
+        .filter((inv) => {
+          const d = new Date(inv.voucherDate);
+          return d.getFullYear() === year && d.getMonth() + 1 === month;
+        })
+        .reduce((s, inv) => s + Number(inv.grandTotal) / 1_000_000, 0);
+      return { month: label, thu: Math.round(thu), chi: Math.round(chi) };
+    },
+  );
+
+  // AR aging buckets (gross invoice amounts)
+  const agingBuckets = {
+    notDue: 0,
+    ov1_30: 0,
+    ov31_60: 0,
+    ov61_90: 0,
+    ovOver90: 0,
+  };
+  for (const inv of allIssuedInvoices) {
+    const amount = Number(inv.grandTotal) / 1_000_000;
+    if (!inv.dueDate) {
+      agingBuckets.notDue += amount;
+      continue;
+    }
+    const days = Math.floor(
+      (today.getTime() - new Date(inv.dueDate).getTime()) / 86_400_000,
+    );
+    if (days <= 0) agingBuckets.notDue += amount;
+    else if (days <= 30) agingBuckets.ov1_30 += amount;
+    else if (days <= 60) agingBuckets.ov31_60 += amount;
+    else if (days <= 90) agingBuckets.ov61_90 += amount;
+    else agingBuckets.ovOver90 += amount;
+  }
+
+  const arAging: DashboardAgingRow[] = [
+    { range: "Chưa đến hạn", amount: Math.round(agingBuckets.notDue) },
+    { range: "1-30 ngày", amount: Math.round(agingBuckets.ov1_30) },
+    { range: "31-60 ngày", amount: Math.round(agingBuckets.ov31_60) },
+    { range: "61-90 ngày", amount: Math.round(agingBuckets.ov61_90) },
+    { range: ">90 ngày", amount: Math.round(agingBuckets.ovOver90) },
+  ];
+
+  // Recent invoices
+  const recentInvoices: DashboardRecentInvoice[] = recentSales.map((inv) => {
+    let status: "overdue" | "unpaid" | "cancelled" = "unpaid";
+    if (inv.invoiceStatus === "CANCELLED") {
+      status = "cancelled";
+    } else if (inv.dueDate && new Date(inv.dueDate) < today) {
+      status = "overdue";
+    }
+    return {
+      id: inv.id,
+      voucherNumber: inv.voucherNumber,
+      partner: inv.customer.name,
+      grandTotal: Number(inv.grandTotal).toLocaleString("vi-VN"),
+      dueDate: inv.dueDate
+        ? new Date(inv.dueDate).toISOString().slice(0, 10)
+        : null,
+      status,
+    };
+  });
+
+  return {
+    totalAR,
+    totalAP,
+    overdueAR,
+    overdueARCount,
+    monthlyData,
+    arAging,
+    recentInvoices,
+  };
 }

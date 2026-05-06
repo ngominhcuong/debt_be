@@ -4,9 +4,13 @@ import {
   getLedgerHandler,
   getReconciliationHandler,
   getManagementReportHandler,
+  getDashboardHandler,
 } from "../controllers/report.controller";
 
 export const reportRouter = Router();
+
+// GET /api/reports/dashboard       — dashboard stats
+reportRouter.get("/dashboard", authenticate, getDashboardHandler);
 
 // GET /api/reports/ledger          — sổ cái tài khoản
 reportRouter.get("/ledger", authenticate, getLedgerHandler);

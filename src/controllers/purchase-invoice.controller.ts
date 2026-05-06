@@ -24,17 +24,18 @@ export async function listInvoices(
     const sortDir = req.query["sortDir"] as string | undefined;
     const page = Number(req.query["page"]) || 1;
     const limit = Number(req.query["limit"]) || 20;
+    let isPosted: boolean | undefined;
+    if (isPostedRaw === "true") {
+      isPosted = true;
+    } else if (isPostedRaw === "false") {
+      isPosted = false;
+    }
     const result = await listPurchaseInvoices({
       q,
       dateFrom,
       dateTo,
       supplierId,
-      isPosted:
-        isPostedRaw === "true"
-          ? true
-          : isPostedRaw === "false"
-            ? false
-            : undefined,
+      isPosted,
       sortBy,
       sortDir,
       page,
@@ -67,7 +68,11 @@ export async function createInvoice(
 ): Promise<void> {
   try {
     const authed = req as AuthenticatedRequest;
-    const result = await createPurchaseInvoice(req.body, authed.userId);
+    const result = await createPurchaseInvoice(
+      req.body,
+      authed.userId,
+      authed.userEmail,
+    );
     res.status(201).json({ success: true, data: result });
   } catch (err) {
     next(err);

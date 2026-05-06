@@ -26,7 +26,7 @@ function normalizeOrigin(value: string): string {
 
 function wildcardToRegExp(pattern: string): RegExp {
   const escaped = pattern.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`);
-  const withWildcard = escaped.replaceAll(/\*/g, ".*");
+  const withWildcard = escaped.replaceAll("*", ".*");
   return new RegExp(`^${withWildcard}$`);
 }
 

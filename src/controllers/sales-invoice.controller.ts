@@ -320,8 +320,8 @@ export async function getSendInvoiceDefaults(
 // ─── Send invoice email — POST ────────────────────────────────────────────────
 
 const sendInvoiceSchema = z.object({
-  to: z.string().email("Địa chỉ email không hợp lệ"),
-  cc: z.array(z.string().email()).optional().default([]),
+  to: z.email("Địa chỉ email không hợp lệ"),
+  cc: z.array(z.email()).optional().default([]),
   note: z.string().max(500).optional(),
 });
 

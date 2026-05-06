@@ -6,8 +6,8 @@ const listQuerySchema = z.object({
   q: z.string().optional(),
   action: z.string().optional(),
   entityType: z.string().optional(),
-  entityId: z.string().uuid().optional(),
-  userId: z.string().uuid().optional(),
+  entityId: z.uuid().optional(),
+  userId: z.uuid().optional(),
   dateFrom: z.iso.date().optional(),
   dateTo: z.iso.date().optional(),
   page: z
@@ -28,13 +28,11 @@ export async function listVoucherLogs(
   try {
     const parsed = listQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Invalid query",
-          errors: z.flattenError(parsed.error).fieldErrors,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Invalid query",
+        errors: z.flattenError(parsed.error).fieldErrors,
+      });
       return;
     }
     const result = await listVoucherAuditLogs(parsed.data);

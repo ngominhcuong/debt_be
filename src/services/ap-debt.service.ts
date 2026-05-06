@@ -238,13 +238,6 @@ export async function getSupplierDebtDetail(supplierId: string) {
     },
   });
 
-  // AP sub-ledger transactions on 331* for this partner
-  const ap331Accounts = await prisma.account.findMany({
-    where: { code: { startsWith: "331" }, isPosting: true },
-    select: { id: true },
-  });
-  const apAccountIds = ap331Accounts.map((a) => a.id);
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -274,7 +267,7 @@ export async function getSupplierDebtDetail(supplierId: string) {
       due.setHours(0, 0, 0, 0);
       const diffMs = today.getTime() - due.getTime();
       const days = Math.floor(diffMs / 86400000);
-      overdueDays = days > 0 ? days : 0;
+      overdueDays = Math.max(0, days);
 
       if (days > 0) {
         applyOverdueAging(aging, amount, days);

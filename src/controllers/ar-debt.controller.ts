@@ -7,7 +7,7 @@ import {
   sendDebtReminder,
 } from "../services/ar-debt.service";
 
-const uuidParam = z.object({ id: z.string().uuid() });
+const uuidParam = z.object({ id: z.uuid() });
 
 const listSchema = z.object({
   q: z.string().optional(),
@@ -29,9 +29,10 @@ export async function listDebtsHandler(
   try {
     const parsed = listSchema.safeParse(req.query);
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({ success: false, errors: parsed.error.flatten().fieldErrors });
+      res.status(400).json({
+        success: false,
+        errors: z.flattenError(parsed.error).fieldErrors,
+      });
       return;
     }
     const result = await listCustomerDebts(parsed.data);

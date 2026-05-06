@@ -88,7 +88,7 @@ export async function getLogsHandler(
 ): Promise<void> {
   try {
     const limit = req.query.limit
-      ? parseInt(req.query.limit as string, 10)
+      ? Number.parseInt(req.query.limit as string, 10)
       : 50;
     const logs = await getRecentReminderLogs(limit);
     res.json({ success: true, data: logs });

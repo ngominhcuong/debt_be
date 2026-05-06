@@ -46,15 +46,15 @@ export interface SendMailOptions {
 export async function sendMail(opts: SendMailOptions): Promise<void> {
   const transporter = getTransporter();
   const fromEmail = env.SMTP_FROM_EMAIL ?? env.SMTP_USER;
+  let cc: string | undefined;
+  if (opts.cc) {
+    cc = Array.isArray(opts.cc) ? opts.cc.join(", ") : opts.cc;
+  }
 
   await transporter.sendMail({
     from: `"${env.SMTP_FROM_NAME}" <${fromEmail}>`,
     to: Array.isArray(opts.to) ? opts.to.join(", ") : opts.to,
-    cc: opts.cc
-      ? Array.isArray(opts.cc)
-        ? opts.cc.join(", ")
-        : opts.cc
-      : undefined,
+    cc,
     subject: opts.subject,
     html: opts.html,
     attachments: opts.attachments,

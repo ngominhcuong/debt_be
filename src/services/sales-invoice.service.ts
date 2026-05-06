@@ -26,7 +26,7 @@ async function writeVoucherLog(params: {
       userEmail: params.userEmail,
       userName: profile?.fullName ?? params.userEmail,
       action: params.action,
-      entityType: "SALES_INVOICE",
+      entityType: "sale_invoice",
       entityId: params.entityId,
       entityRef: params.entityRef,
       detail: params.detail,

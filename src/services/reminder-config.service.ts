@@ -190,10 +190,10 @@ export async function getGlobalReminderSettings(): Promise<GlobalReminderSetting
     ]);
 
   const reminderEnabled = enabledStr === "true";
-  const reminderHour = parseInt(hourStr, 10);
-  const reminderMinute = parseInt(minuteStr, 10);
-  const defaultDaysBeforeDue = parseInt(daysBeforeStr, 10);
-  const defaultDaysAfterDue = parseInt(daysAfterStr, 10);
+  const reminderHour = Number.parseInt(hourStr, 10);
+  const reminderMinute = Number.parseInt(minuteStr, 10);
+  const defaultDaysBeforeDue = Number.parseInt(daysBeforeStr, 10);
+  const defaultDaysAfterDue = Number.parseInt(daysAfterStr, 10);
   const cronSchedule = `${reminderMinute} ${reminderHour} * * *`;
   const description = `Mỗi ngày lúc ${String(reminderHour).padStart(2, "0")}:${String(reminderMinute).padStart(2, "0")}`;
 
